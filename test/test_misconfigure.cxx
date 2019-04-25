@@ -9,7 +9,7 @@
 
 #include <iostream>
 
-#include "TCanvas.h"
+#include "MultiPdf.h"
 #include "TFile.h"
 #include "TStyle.h"
 #include "TH2F.h"
@@ -17,6 +17,7 @@
 
 using namespace std;
 using namespace WireCell;
+using namespace WireCell::Test;
 using namespace WireCell::Waveform;
 
 // Make up a Gaussian charge distribution 
@@ -43,7 +44,7 @@ float maximum(const std::vector<float>& wave) {
 }
 
 
-TH1F* plot_wave(TCanvas& canvas, const std::vector<float>& wave, std::string name, std::string title)
+TH1F* plot_wave(MultiPdf& pdf, const std::vector<float>& wave, std::string name, std::string title)
 {
     TH1F* hist = new TH1F(name.c_str(), title.c_str(), wave.size(), 0, wave.size()+1);
     int tick = 0;
@@ -54,11 +55,11 @@ TH1F* plot_wave(TCanvas& canvas, const std::vector<float>& wave, std::string nam
     hist->SetXTitle("tick");
     hist->SetYTitle("amplitude");
     hist->Draw("hist");
-    canvas.Print("test-misconfigure.pdf");
+    pdf();
     return hist;
 }
 
-TH2F* plot_ratio(TCanvas& canvas, TH2F* f1, TH2F* f2)
+TH2F* plot_ratio(MultiPdf& pdf, TH2F* f1, TH2F* f2)
 {
     TH2F* out = (TH2F*)f1->Clone("ratio");
     out->SetTitle("Ratio - no time shift correction");
@@ -66,12 +67,12 @@ TH2F* plot_ratio(TCanvas& canvas, TH2F* f1, TH2F* f2)
     out->SetXTitle("ticks");
     out->SetYTitle("channels");
     out->Draw("colz");
-    canvas.Print("test-misconfigure.pdf");
+    pdf();
     return out;
 }
 
-TH2F* plot_frame(TCanvas& canvas, IFrame::pointer frame, std::string name, double mtick=-1, double mchan=-1);
-TH2F* plot_frame(TCanvas& canvas, IFrame::pointer frame, std::string name, double mtick, double mchan)
+TH2F* plot_frame(MultiPdf& pdf, IFrame::pointer frame, std::string name, double mtick=-1, double mchan=-1);
+TH2F* plot_frame(MultiPdf& pdf, IFrame::pointer frame, std::string name, double mtick, double mchan)
 {
     auto traces = frame->traces();
 
@@ -113,7 +114,7 @@ TH2F* plot_frame(TCanvas& canvas, IFrame::pointer frame, std::string name, doubl
         hist->GetYaxis()->SetRangeUser(0, mchan);
     }
 
-    canvas.Print("test-misconfigure.pdf","pdf");
+    pdf();
     return hist;
 }
 
@@ -189,26 +190,23 @@ int main(int argc, char* argv[])
 
     gStyle->SetOptStat(0);
     gStyle->SetOptFit(0);
-    TCanvas canvas("canvas","canvas", 1200, 800);
+    MultiPdf pdf(argv[0]);
 
-    canvas.Print("test-misconfigure.pdf[","pdf");
+    plot_wave(pdf,resp,"resp","Electronics response waveform - 200 bins");
+    plot_wave(pdf,resp2,"resp2","Electronics response waveform - 400 bins");
+    plot_wave(pdf,resp3,"resp3","Electronics response waveform - 50 bins");
+    plot_wave(pdf, Waveform::real(resp_spec),"respect","Electronics response spectrum - 200 bins");
+    plot_wave(pdf, Waveform::real(resp_spec2),"respect2","Electronics response spectrum - 400 bins");
+    plot_wave(pdf, Waveform::real(resp_spec3),"respect3","Electronics response spectrum - 50 bins");
 
-    plot_wave(canvas,resp,"resp","Electronics response waveform - 200 bins");
-    plot_wave(canvas,resp2,"resp2","Electronics response waveform - 400 bins");
-    plot_wave(canvas,resp3,"resp3","Electronics response waveform - 50 bins");
-    plot_wave(canvas, Waveform::real(resp_spec),"respect","Electronics response spectrum - 200 bins");
-    plot_wave(canvas, Waveform::real(resp_spec2),"respect2","Electronics response spectrum - 400 bins");
-    plot_wave(canvas, Waveform::real(resp_spec3),"respect3","Electronics response spectrum - 50 bins");
+    plot_frame(pdf, qorig, "ChargeZoomed", 50., 5.);
+    plot_frame(pdf, orig, "ShapedZoomed", 50., 5.);
+    plot_frame(pdf, mced, "MisconfiguredZoomed", 50, 5);
 
-    plot_frame(canvas, qorig, "ChargeZoomed", 50., 5.);
-    plot_frame(canvas, orig, "ShapedZoomed", 50., 5.);
-    plot_frame(canvas, mced, "MisconfiguredZoomed", 50, 5);
-
-    plot_frame(canvas, qorig, "Charge");
-    auto f1 = plot_frame(canvas, orig, "Shaped");
-    auto f2 = plot_frame(canvas, mced, "Misconfigured");
-    plot_ratio(canvas, f1, f2);
-    canvas.Print("test-misconfigure.pdf]","pdf");
+    plot_frame(pdf, qorig, "Charge");
+    auto f1 = plot_frame(pdf, orig, "Shaped");
+    auto f2 = plot_frame(pdf, mced, "Misconfigured");
+    plot_ratio(pdf, f1, f2);
 
     return 0;
 }

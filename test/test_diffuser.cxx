@@ -6,15 +6,16 @@
 #include "WireCellUtil/Units.h"
 
 
-#include "TApplication.h"
-#include "TCanvas.h"
 #include "TH2F.h"
 #include "TStyle.h"
 #include "TPolyMarker.h"
+#include "MultiPdf.h"
+
 
 #include <iostream>
 
 using namespace WireCell;
+using namespace WireCell::Test;
 using namespace std;
 
 
@@ -48,9 +49,9 @@ void test_one()
 }
 
 
-void test_plot_hist(TCanvas& canvas)
+void test_plot_hist(MultiPdf& pdf)
 {
-    canvas.Clear();
+    pdf.canvas.Clear();
 
     //const int nsigma = 3;
     const double drift_velocity = 1.6 * units::mm/units::microsecond;
@@ -113,7 +114,7 @@ void test_plot_hist(TCanvas& canvas)
     pm->Draw();
 
     gStyle->SetOptStat(11111111);
-    canvas.Print("test_diffuser.pdf","pdf");
+    pdf();
 }
 
 
@@ -121,10 +122,9 @@ int main(int argc, char* argv[])
 {
     test_one();
 
-    TCanvas canvas("c","c",500,500);
-    canvas.Print("test_diffuser.pdf[","pdf");
+    MultiPdf pdf(argv[0]);
 
-    test_plot_hist(canvas);
+    test_plot_hist(pdf);
 
-    canvas.Print("test_diffuser.pdf]","pdf");
+    return 0;
 }

@@ -3,11 +3,11 @@
 #include "WireCellGen/WireParams.h"
 #include "WireCellUtil/Testing.h"
 
-#include "TApplication.h"
-#include "TCanvas.h"
 #include "TH1F.h"
 #include "TArrow.h"
 #include "TLine.h"
+
+#include "MultiPdf.h"
 
 #include <boost/range.hpp>
 
@@ -15,10 +15,11 @@
 #include <cmath>
 
 using namespace WireCell;
+using namespace WireCell::Test;
 using namespace std;
 
 
-void test3D(bool interactive)
+void test3D(MultiPdf& pdf, bool interactive)
 {
     WireParams* params = new WireParams;
     double pitch = 10.0;
@@ -39,14 +40,9 @@ void test3D(bool interactive)
 
     const Ray& bbox = params->bounds();
 
-    TApplication* theApp = 0;
-    if (interactive) {
-	theApp = new TApplication ("test_paramwires",0,0);
-    }
 
-    TCanvas c("c","c",500,500);
-    TH1F* frame = c.DrawFrame(bbox.first.z(), bbox.first.y(),
-			      bbox.second.z(), bbox.second.y());
+    TH1F* frame = pdf.canvas.DrawFrame(bbox.first.z(), bbox.first.y(),
+                                       bbox.second.z(), bbox.second.y());
     frame->SetTitle("red=U, blue=V, +X (-drift) direction into page");
     frame->SetXTitle("Transverse Z direction");
     frame->SetYTitle("Transverse Y (W) direction");
@@ -81,18 +77,12 @@ void test3D(bool interactive)
 	a_wire->SetLineWidth(width);
 	a_wire->Draw();
     }
-
-    if (theApp) {
-	theApp->Run();
-    }
-    else {			// batch
-	c.Print("test_paramwires.pdf");
-    }
-
+    pdf();
 }
 
 int main(int argc, char** argv)
 {
-    test3D(argc>1);
+    MultiPdf pdf(argv[0]);
+    test3D(pdf, argc>1);
     return 0;
 }

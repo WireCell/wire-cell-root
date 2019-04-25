@@ -2,13 +2,13 @@
 #include "WireCellUtil/Testing.h"
 #include "WireCellUtil/Configuration.h"
 
-#include "TApplication.h"
-#include "TCanvas.h"
 #include "TH1F.h"
 #include "TArrow.h"
 #include "TLine.h"
+#include "MultiPdf.h"
 
 using namespace WireCell;
+using namespace WireCell::Test;
 using namespace std;
 
 int main(int argc, char** argv)
@@ -17,13 +17,9 @@ int main(int argc, char** argv)
     auto cfg = wp.default_configuration();
     cerr << cfg << endl;
     
-    TApplication* theApp = 0;
-    if (argc > 1) {
-	theApp = new TApplication ("test_iwireprovider",0,0);
-    }
 
-    TCanvas c("c","c",500,500);
-    TH1F* frame = c.DrawFrame(0,-10, 20,10);
+    MultiPdf pdf(argv[0]);
+    TH1F* frame = pdf.canvas.DrawFrame(0,-10, 20,10);
     frame->SetTitle("Pitch (thick) and wire (thin) red=U, blue=V, +X (-drift) direction into page");
     frame->SetXTitle("Transverse Z direction");
     frame->SetYTitle("Transverse Y (W) direction");
@@ -64,13 +60,7 @@ int main(int argc, char** argv)
 	a_wire->Draw();
     }
 
-    if (theApp) {
-	theApp->Run();
-    }
-    else {			// batch
-	c.Print("test_wireparams.pdf");
-    }
-
+    pdf();
 
     return 0;
 

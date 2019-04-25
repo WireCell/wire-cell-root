@@ -2,11 +2,12 @@
 #include "WireCellUtil/Units.h"
 #include "WireCellUtil/Response.h"
 
-#include "TCanvas.h"
 #include "TH1F.h"
 #include "TLine.h"
 #include "TText.h"
 #include "TGraph.h"
+
+#include "MultiPdf.h"
 
 #include <iostream>
 #include <algorithm>
@@ -14,12 +15,13 @@
 
 using namespace std;
 using namespace WireCell;
+using namespace WireCell::Test;
 
 // The preferred display units for gain.
 const double GUnit = units::mV/units::fC;
 
 
-void draw_time_freq(TCanvas& canvas,
+void draw_time_freq(MultiPdf& pdf,
 		    Waveform::realseq_t& res, 
 		    const std::string& title, 
                     const Binning& tbins)
@@ -69,16 +71,16 @@ void draw_time_freq(TCanvas& canvas,
     //h_mag.GetXaxis()->SetRangeUser(0,2.0);
     //h_phi.GetXaxis()->SetRangeUser(0,2.0);
 
-    canvas.Clear();
-    canvas.Divide(2,1);
+    pdf.canvas.Clear();
+    pdf.canvas.Divide(2,1);
 
-    auto pad = canvas.cd(1);
+    auto pad = pdf.canvas.cd(1);
     pad->SetGridx();
     pad->SetGridy();
     h_wave.Draw("hist");
     h_wave2.Draw("hist,same");
 
-    auto spad = canvas.cd(2);
+    auto spad = pdf.canvas.cd(2);
     spad->Divide(1,2);
     pad = spad->cd(1);
     pad->SetGridx();
@@ -105,11 +107,11 @@ void draw_time_freq(TCanvas& canvas,
     pad->SetGridx();
     pad->SetGridy();
     h_phi.Draw("hist");
-    canvas.Print("test_fft.pdf","pdf");
+    pdf();
 
 }
 
-int main()
+int main(int argc, char* argv[])
 {
     const std::vector<double> gains = {7.8*GUnit, 14.0*GUnit};
     const std::vector<double> shapings = {1.0*units::us, 2.0*units::us};
@@ -120,8 +122,7 @@ int main()
     const int nticks = tbins.nbins();
     cerr << "Using nticks=" << nticks << endl;
 
-    TCanvas canvas("test_fft", "Response Functions", 500, 500);
-    canvas.Print("test_fft.pdf[","pdf");
+    MultiPdf pdf(argv[0]);
 
     for (size_t ind=0; ind<gains.size(); ++ind) {
 	Response::ColdElec ce(gains[ind], shapings[ind]);
@@ -130,7 +131,7 @@ int main()
         const double tshape_us = shapings[ind]/units::us;
 	auto tit = Form("Cold Electronics Response at %.0fus peaking",
 			tshape_us);
-	draw_time_freq(canvas, res, tit, tbins);
+	draw_time_freq(pdf, res, tit, tbins);
     }
 
 
@@ -143,7 +144,7 @@ int main()
 	Waveform::realseq_t res = rc.generate(tbins);
 	
 	auto tit = "RC Response at 1ms time constant";
-	draw_time_freq(canvas, res, tit, tbins);
+	draw_time_freq(pdf, res, tit, tbins);
     }
     {
         Binning shifted(tbins.nbins(), tbins.min()+tick, tbins.max()+tick);
@@ -152,7 +153,7 @@ int main()
 	Waveform::realseq_t res = rc.generate(shifted);
 	
 	auto tit = "RC Response at 1ms time constant (suppress delta)";
-	draw_time_freq(canvas, res, tit, tbins);
+	draw_time_freq(pdf, res, tit, tbins);
     }
 
     // Look at SysResp (Gaussian smear)
@@ -160,7 +161,7 @@ int main()
     Response::SysResp gaus;
     Waveform::realseq_t res = gaus.generate(tbins);
     auto tit = "Response Gaussian smear by default";
-    draw_time_freq(canvas, res, tit, tbins); 
+    draw_time_freq(pdf, res, tit, tbins); 
     }
     {
     double mag = 1.0;
@@ -171,7 +172,7 @@ int main()
     Response::SysResp gaus(tick, mag, smear);
     Waveform::realseq_t res = gaus.generate(ttt);
     auto tit = "Response Gaussian 2 us smear";
-    draw_time_freq(canvas, res, tit, ttt); 
+    draw_time_freq(pdf, res, tit, ttt); 
     }
 
 
@@ -244,12 +245,12 @@ int main()
 	    timings[3]->SetPoint(timings[3]->GetN(), nsamps, rev_time/nsamps);
 	}
 	
-	canvas.Clear();
-	canvas.Divide(1,2);
+	pdf.canvas.Clear();
+	pdf.canvas.Divide(1,2);
 
 	auto text = new TText;
 	{
-	    auto pad = canvas.cd(1);
+	    auto pad = pdf.canvas.cd(1);
 	    pad->SetGridx();
 	    pad->SetGridy();
 	    pad->SetLogx();
@@ -268,7 +269,7 @@ int main()
 	}
 
 	{
-	    auto pad = canvas.cd(2);
+	    auto pad = pdf.canvas.cd(2);
 	    pad->SetGridx();
 	    pad->SetGridy();
 	    pad->SetLogx();
@@ -279,9 +280,9 @@ int main()
 	    timings[1]->Draw("AL");
 	    timings[3]->Draw("L");
 	}
-	canvas.Print("test_fft.pdf","pdf");
+        pdf();
 
     }
 
-    canvas.Print("test_fft.pdf]","pdf");
+    return 0;
 }

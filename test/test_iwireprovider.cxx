@@ -14,16 +14,17 @@
 #include "WireCellUtil/PluginManager.h"
 #include "WireCellUtil/NamedFactory.h"
 
-#include "TApplication.h"
-#include "TCanvas.h"
 #include "TH1F.h"
 #include "TLine.h"
 #include "TMarker.h"
+
+#include "MultiPdf.h"
 
 #include <iostream>
 #include <iterator>
 
 using namespace WireCell;
+using namespace WireCell::Test;
 using namespace std;
 
 
@@ -113,12 +114,8 @@ int main(int argc, char* argv[])
 	w_wires.size()
     };
 
-    TApplication* theApp = 0;
-    if (argc > 1) {
-	theApp = new TApplication ("test_iwireprovider",0,0);
-    }
+    MultiPdf pdf(argv[0]);
 
-    TCanvas c;
     TLine l;
     TMarker m;
     m.SetMarkerSize(1);
@@ -129,7 +126,7 @@ int main(int argc, char* argv[])
     cout << tk("Made TCanvas") << endl;
     cout << mu("Made TCanvas") << endl;
 
-    TH1F* frame = c.DrawFrame(bbox.first.z(), bbox.first.y(),
+    TH1F* frame = pdf.canvas.DrawFrame(bbox.first.z(), bbox.first.y(),
 			      bbox.second.z(), bbox.second.y());
     frame->SetTitle("Wires, red=U, blue=V, thicker=increasing index");
     frame->SetXTitle("Z transverse direction");
@@ -153,12 +150,7 @@ int main(int argc, char* argv[])
     cout << tk("Canvas drawn") << endl;
     cout << mu("Canvas drawn") << endl;
 
-    if (theApp) {
-	theApp->Run();
-    }
-    else {			// batch
-	c.Print("test_iwireprovider.pdf");
-    }
+    pdf();
 
     cout << "Timing summary:\n" << tk.summary() << endl;
     cout << "Memory summary:\n" << mu.summary() << endl;

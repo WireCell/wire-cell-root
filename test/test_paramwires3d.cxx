@@ -4,11 +4,10 @@
 #include "WireCellUtil/Testing.h"
 #include "WireCellUtil/Persist.h"
 
-#include "TApplication.h"
-#include "TCanvas.h"
 #include "TView.h"
 #include "TPolyLine3D.h"
 #include "TPolyMarker3D.h"
+#include "MultiPdf.h"
 
 #include <boost/range.hpp>
 
@@ -16,6 +15,7 @@
 #include <cmath>
 
 using namespace WireCell;
+using namespace WireCell::Test;
 using namespace std;
 
 void test1()
@@ -76,7 +76,7 @@ void test2()
     }
 }
 
-void test3D(bool interactive)
+void test3D(MultiPdf& pdf, bool interactive)
 {
     WireParams* params = new WireParams;
     IWireParameters::pointer iwp(params);
@@ -88,13 +88,6 @@ void test3D(bool interactive)
     AssertMsg(wires->size(), "Got no wires");
 
     const Ray& bbox = params->bounds();
-
-    TApplication* theApp = 0;
-    if (interactive) {
-	theApp = new TApplication ("test_paramwires3d",0,0);
-    }
-
-    TCanvas c;
 
     TView* view = TView::CreateView(1);
     view->SetRange(bbox.first.x(),bbox.first.y(),bbox.first.z(),
@@ -131,20 +124,15 @@ void test3D(bool interactive)
 	pl->Draw();
     }
 
-    if (theApp) {
-	theApp->Run();
-    }
-    else {			// batch
-	c.Print("test_paramwires3d.pdf");
-    }
-
+    pdf();
 }
 
 int main(int argc, char** argv)
 {
+    MultiPdf pdf(argv[0]);
     test1();
     test2();
-    test3D(argc>1);
+    test3D(pdf,argc>1);
     
 
     return 0;

@@ -1,8 +1,6 @@
 #include "WireCellGen/WireParams.h"
 #include "WireCellUtil/Testing.h"
 
-#include "TApplication.h"
-#include "TCanvas.h"
 
 // 3d
 #include "TView.h"
@@ -15,7 +13,10 @@
 #include "TLine.h"
 #include "TAxis.h"
 
+#include "MultiPdf.h"
+
 using namespace WireCell;
+using namespace WireCell::Test;
 using namespace std;
 
 void draw_wires_3d(WireParams& wp)
@@ -96,6 +97,8 @@ void draw_wires_2d(WireParams& wp)
 
 int main(int argc, char** argv)
 {
+    MultiPdf pdf(argv[0]);
+
     WireParams wp;
 
     const Ray& bbox = wp.bounds();
@@ -106,18 +109,13 @@ int main(int argc, char** argv)
     cerr << "pV=" << wp.pitchV() << endl;
     cerr << "pW=" << wp.pitchW() << endl;
 
-    TApplication* theApp = 0;
-    if (argc > 1) {
-	theApp = new TApplication ("test_wireparams3d",0,0);
-    }
 
 
-    TCanvas c("c","c",800,800);
-    c.Divide(2,2);
+    pdf.canvas.Divide(2,2);
 
-    c.cd(1);
+    pdf.canvas.cd(1);
     draw_wires_3d(wp);
-    c.cd(2);
+    pdf.canvas.cd(2);
     draw_wires_2d(wp);
 
     double pitch = 10.0;
@@ -128,18 +126,12 @@ int main(int argc, char** argv)
     put(cfg, "pitch_mm.w", pitch);
     params.configure(cfg);
 
-    c.cd(3);
+    pdf.canvas.cd(3);
     draw_wires_3d(wp);
-    c.cd(4);
+    pdf.canvas.cd(4);
     draw_wires_2d(wp);
 
-    if (theApp) {
-	theApp->Run();
-    }
-    else {			// batch
-	c.Print("test_wireparams3d.pdf");
-    }
-
+    pdf();
 
     return 0;
 

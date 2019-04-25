@@ -52,7 +52,7 @@ int main(int argc, char* argv[]){
   auto wfs = ncr->filter_waveform(nfbins);
   auto wfs1 = ncr1->filter_waveform(nfbins);
 
-  TFile *file = new TFile("temp1.root","RECREATE");
+  TFile *file = new TFile(Form("%s.root", argv[0]),"RECREATE");
   TGraph *g1 = new TGraph();
   TGraph *g2 = new TGraph();
   for (size_t i=0;i!=wfs.size();i++){
