@@ -123,7 +123,7 @@ int main(int argc, char* argv[])
 {
     PluginManager& pm = PluginManager::instance();
     pm.add("WireCellGen");
-    pm.add("WireCellSio");
+    pm.add("WireCellRoot");
 
     int nsamples = 50;
     double gain, shaping, tick;
