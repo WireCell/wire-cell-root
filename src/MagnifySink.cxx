@@ -21,6 +21,7 @@ using namespace WireCell;
 
 Root::MagnifySink::MagnifySink()
     : m_nrebin(1)
+    , log(Log::logger("magnify"))
 {
 }
 
@@ -33,13 +34,9 @@ void Root::MagnifySink::configure(const WireCell::Configuration& cfg)
     std::string fn;
 
     fn = cfg["input_filename"].asString();
-    if (fn.empty()) {
-        if (cfg["shunt"].empty()) {
-            std::cerr << "MagnifySink no objects to copy but given input: " << fn << std::endl;
-        }
-        else {
-            THROW(ValueError() << errmsg{"MagnifySink: must provide input filename to shunt objects to output"});
-        }
+    if (fn.empty() and !cfg["shunt"].empty()) {
+        log->error("MagnifySink: asked to shunt but not given input file name");
+        THROW(ValueError() << errmsg{"MagnifySink: must provide input filename to shunt objects to output"});
     }
 
     fn = cfg["output_filename"].asString();
@@ -53,8 +50,6 @@ void Root::MagnifySink::configure(const WireCell::Configuration& cfg)
     m_cfg = cfg;
 
     m_nrebin = get<int>(cfg, "nrebin", m_nrebin);
-
-    // std::cout << "MagnifySink Rebin: " << m_nrebin << std::endl;
 }
 
 
@@ -151,7 +146,6 @@ std::vector<WireCell::Binning> collate_byplane(const ITrace::vector& traces, con
         const int chid = trace->channel();
         auto wpid = anode->resolve(chid);
         const int iplane = wpid.index();
-        //std::cerr << "\tchid="<<chid<<" iplane="<<iplane<<" wpid="<<wpid<<std::endl;
         if (iplane<0 || iplane>=3) {
             THROW(RuntimeError() << errmsg{"Illegal wpid"});
         }
@@ -165,7 +159,6 @@ std::vector<WireCell::Binning> collate_byplane(const ITrace::vector& traces, con
     for (int ind=0; ind<4; ++ind) {
         auto const& one = uvwt[ind];
         if (one.empty()) {
-            std::cerr << "MagnifySink: bogus bounds " << ind << "\n";
             THROW(ValueError() << errmsg{"MagnifySink: bogus bounds"});
         }
             
@@ -188,11 +181,12 @@ std::vector<WireCell::Binning> collate_byplane(const ITrace::vector& traces, con
 
 void Root::MagnifySink::do_shunt(TFile* output_tf)
 {
+    std::stringstream ss;
     auto truncfg = m_cfg["runinfo"];
     if (!truncfg.empty()) {
 	TTree *rtree = new TTree("Trun","Trun");
 	rtree->SetDirectory(output_tf);
-	std::cerr << "MagnifySink: making Tree RunInfo:\n";
+        ss << "MagnifySink: making Tree RunInfo:\n";
 
 	std::vector<int> ints;
     // issue to be fixed:
@@ -207,7 +201,7 @@ void Root::MagnifySink::do_shunt(TFile* output_tf)
     int celltree_input = 0;
     for (auto name : truncfg.getMemberNames()) {
 	    auto jval = truncfg[name];
-	    std::cerr << "\t" << name << " = " << jval << std::endl;
+	    ss << "\t" << name << " = " << jval << "\n";
         if(name == "eventNo") frame_number = std::stoi(jval.asString());
         if(name == "Celltree") {
             celltree_input = jval.asInt();
@@ -228,47 +222,50 @@ void Root::MagnifySink::do_shunt(TFile* output_tf)
 		rtree->Branch(name.c_str(), &ints.back(), (name+"/I").c_str());
 		continue;
 	    }
-	    std::cerr << "MagnifySink: warning: got unknown type for run info entry: "
-		      << "\"" << name << "\" = " << jval << std::endl;
+            log->warn("MagnifySink: warning: got unknown type for run info entry: \"{}\" = {}",
+                      name, jval);
+    }
+    if (ss.str().size() > 0) {
+        log->debug(ss.str());
     }
 
     if(celltree_input){
-    // runNo and subRunNo, perhaps other info in the future
-    TFile *input_runinfo = TFile::Open((m_cfg["input_filename"].asString()).c_str()); 
-    TTree *run = (TTree*)input_runinfo->Get("/Event/Sim");
-    if (!run) {
-        std::cerr<<"MagnifySink: runinfo: no tree: /Event/Sim in input file\n\n";
-    }
-    else{
-    run->SetBranchStatus("*",0);
-
-    int run_no, subrun_no, event_no;
-    run->SetBranchStatus("eventNo",1);
-    run->SetBranchAddress("eventNo" , &event_no);
-    run->SetBranchStatus("runNo",1);
-    run->SetBranchAddress("runNo"   , &run_no);
-    rtree->Branch("runNo",&run_no,"runNo/I");
-    run->SetBranchStatus("subRunNo",1);
-    run->SetBranchAddress("subRunNo", &subrun_no);
-    rtree->Branch("subRunNo",&subrun_no,"subRunNo/I");
-
-    unsigned int entries = run->GetEntries();
-    bool legalevt = false;
-    for(unsigned int ent = 0; ent<entries; ent++)
-    {
-        int siz = run->GetEntry(ent);
-        if(siz>0 && event_no == frame_number )
-        {
-            legalevt = true;
-            break;
+        // runNo and subRunNo, perhaps other info in the future
+        TFile *input_runinfo = TFile::Open((m_cfg["input_filename"].asString()).c_str()); 
+        TTree *run = (TTree*)input_runinfo->Get("/Event/Sim");
+        if (!run) {
+            log->warn("MagnifySink: runinfo: no tree: /Event/Sim in input file");
         }
-    }
-    if(!legalevt){
-        THROW(ValueError() << errmsg{"MagnifySink: event number out of range!"});
-    }   
-    delete input_runinfo;
-    input_runinfo = nullptr;
-    } // Event/Sim found
+        else{
+            run->SetBranchStatus("*",0);
+
+            int run_no, subrun_no, event_no;
+            run->SetBranchStatus("eventNo",1);
+            run->SetBranchAddress("eventNo" , &event_no);
+            run->SetBranchStatus("runNo",1);
+            run->SetBranchAddress("runNo"   , &run_no);
+            rtree->Branch("runNo",&run_no,"runNo/I");
+            run->SetBranchStatus("subRunNo",1);
+            run->SetBranchAddress("subRunNo", &subrun_no);
+            rtree->Branch("subRunNo",&subrun_no,"subRunNo/I");
+
+            unsigned int entries = run->GetEntries();
+            bool legalevt = false;
+            for(unsigned int ent = 0; ent<entries; ent++)
+                {
+                    int siz = run->GetEntry(ent);
+                    if(siz>0 && event_no == frame_number )
+                        {
+                            legalevt = true;
+                            break;
+                        }
+                }
+            if(!legalevt){
+                THROW(ValueError() << errmsg{"MagnifySink: event number out of range!"});
+            }   
+            delete input_runinfo;
+            input_runinfo = nullptr;
+        } // Event/Sim found
     } // celltree input
 
     rtree->Fill();
@@ -283,27 +280,26 @@ void Root::MagnifySink::do_shunt(TFile* output_tf)
     }
     auto toshunt = getset(m_cfg["shunt"]);
     if (toshunt.empty()) {
-	std::cerr << "MagnifySink: no objects to copy but given input: " << ifname << std::endl;
+        log->warn("MagnifySink: no objects to copy but given input: {}", ifname);
 	return;
     }
-    std::cerr << "MagnifySink: sneaking peaks into input file: " << ifname << std::endl;
+    log->debug("MagnifySink: sneaking peaks into input file: {}", ifname);
 
 
     TFile *input_tf =  TFile::Open(ifname.c_str());
     for (auto name : toshunt) {
-    if (name == "Trun" && !truncfg.empty()) { // no double dipping
+        if (name == "Trun" && !truncfg.empty()) { // no double dipping
 	    continue;
 	}
 	TObject* obj = input_tf->Get(name.c_str());
 
 	if (!obj) {
-	    std::cerr << "MagnifySink: warning: failed to find input object: \""
-		      << name << "\" for copying to output\n";
+            log->warn("MagnifySink: warning: failed to find input object: \"{}\" for copying to output", name);
 	}
 
 	TTree* tree = dynamic_cast<TTree*>(obj);
 	if (tree) {
-	    std::cerr << "MagnifySink: copying tree: \"" << name << "\"\n";
+	    log->debug("MagnifySink: copying tree: \"{}\"", name);
 	    tree = tree->CloneTree();
 	    tree->SetDirectory(output_tf);
 	    continue;
@@ -311,12 +307,12 @@ void Root::MagnifySink::do_shunt(TFile* output_tf)
 
 	TH1* hist = dynamic_cast<TH1*>(obj);
 	if (hist) {
-	    std::cerr << "MagnifySink: copying hist: \"" << name << "\"\n";
+	    log->debug("MagnifySink: copying hist: \"{}\"", name);
 	    hist->SetDirectory(output_tf);
 	    continue;
 	}
 
-	std::cerr << "MagnifySink: warning: object of unknown type: \"" << name << "\", will not copy\n";
+        log->warn("MagnifySink: warning: not copying object of unknown type: \"{}\"",name);
     }
 
     delete input_tf;
@@ -329,17 +325,17 @@ bool Root::MagnifySink::operator()(const IFrame::pointer& frame, IFrame::pointer
     out_frame = frame;
     if (!frame) {
         // eos 
-        std::cerr << "MagnifySink: EOS\n";
+        log->debug("MagnifySink: EOS");
         return true;
     }
     if (frame->traces()->empty()) {
-        std::cerr << "MagnifySink: passing through empty frame " << frame->ident() << std::endl;
+        log->debug("MagnifySink: passing through empty frame ID {}", frame->ident());
         return true;
     }
 
     const std::string ofname = m_cfg["output_filename"].asString();
     const std::string mode = m_cfg["root_file_mode"].asString();
-    std::cerr << "MagnifySink: opening for output: " << ofname << " with \"" << mode << "\"\n";
+    log->debug("MagnifySink: opening for output: {} with mode {}", ofname, mode);
     TFile* output_tf = TFile::Open(ofname.c_str(), mode.c_str());
 
     for (auto tag : getset(m_cfg["frames"])) {
@@ -348,20 +344,17 @@ bool Root::MagnifySink::operator()(const IFrame::pointer& frame, IFrame::pointer
         auto trace_has_tag  = m_cfg["trace_has_tag"].asBool();
         if(!trace_has_tag){
             trace_tag = "";
-            std::cerr << "MagnifySink: set desired trace tag to \"\" as cfg::trace_has_tag=false\n";
+            log->debug("MagnifySink: set desired trace tag to \"\" as cfg::trace_has_tag=false");
         }
 
-        //ITrace::vector traces_byplane[3], traces = get_tagged_traces(frame, tag);
         ITrace::vector traces_byplane[3], traces = FrameTools::tagged_traces(frame, trace_tag);
-	//if(traces.empty() && tag.find("orig",0)==0/*starts with orig*/) traces = FrameTools::untagged_traces(frame);
         if (traces.empty()) {
-            std::cerr << "MagnifySink: no tagged traces for \"" << tag << "\"\n";
-            // THROW(ValueError() << errmsg{"MagnifySink: no tagged traces"});
-            // let's not be so heavy handed.
+            log->warn("MagnifySink: no tagged traces for \"{}\"", tag);
             continue;
         }
 
-        std::cerr << "MagnifySink: tag: \"" << tag << "\" with " << traces.size() << " traces\n";
+        log->debug("MagnifySink: tag: \"{}\" with {} traces", tag, traces.size());
+
         auto binnings = collate_byplane(traces, m_anode, traces_byplane);
 
         Binning tbin = binnings[3];
@@ -369,9 +362,11 @@ bool Root::MagnifySink::operator()(const IFrame::pointer& frame, IFrame::pointer
 
             const std::string name = Form("h%c_%s", 'u'+iplane, tag.c_str());
             Binning cbin = binnings[iplane];
-            std::cerr << "MagnifySink:"
-                      << " cbin:"<<cbin.nbins()<<"["<<cbin.min() << "," << cbin.max() << "]"
-                      << " tbin:"<<tbin.nbins()<<"["<<tbin.min() << "," << tbin.max() << "]\n";
+            std::stringstream ss;
+            ss << "MagnifySink:"
+               << " cbin:"<<cbin.nbins()<<"["<<cbin.min() << "," << cbin.max() << "]"
+               << " tbin:"<<tbin.nbins()<<"["<<tbin.min() << "," << tbin.max() << "]";
+            log->debug(ss.str());
 
 	    // consider to add nrebin ...
 	    int nbins = tbin.nbins()/m_nrebin;
@@ -395,10 +390,10 @@ bool Root::MagnifySink::operator()(const IFrame::pointer& frame, IFrame::pointer
                     //hist->Fill(ch, tbin+itick+0.5, charges[itick]);
 		    // edit: it's due to saving errors.
 
-		    // std::cout << tbin1 << " " << tbin.min() << std::endl;
 		    int ibin = (tbin1-tbin.min()+itick)/m_nrebin;
 		    
-                    hist->SetBinContent(cbin.bin(ch)+1, ibin+1, charges[itick]+hist->GetBinContent(cbin.bin(ch)+1, ibin+1));
+                    hist->SetBinContent(cbin.bin(ch)+1, ibin+1,
+                                        charges[itick]+hist->GetBinContent(cbin.bin(ch)+1, ibin+1));
                 }
             }
         }
@@ -410,18 +405,18 @@ bool Root::MagnifySink::operator()(const IFrame::pointer& frame, IFrame::pointer
         //auto traces = get_tagged_traces(frame, tag);
         auto traces = FrameTools::tagged_traces(frame, tag);
         if (traces.empty()) {
-            std::cerr << "MagnifySink: warning: no traces tagged with \"" << tag << "\", skipping summary\n";
+            log->warn("MagnifySink: no traces tagged with \"{}\", skipping summary", tag);
             continue;
         }
         auto const& summary = frame->trace_summary(tag);
         if (summary.empty()) {
-            std::cerr << "MagnifySink: warning: empty summary tagged with \"" << tag << "\", skipping summary\n";
+            log->warn("MagnifySink: warning: empty summary tagged with \"{}\", skipping summary", tag);
             continue;
         }
             
         std::string oper = get<std::string>(m_cfg["summary_operator"], tag, "sum");
 
-        std::cerr << "MagnifySink: saving summaries tagged with \"" << tag << "\" into per-plane hists\n";
+        log->debug("MagnifySink: saving summaries tagged with \"{}\" into per-plane hists", tag);
 
         // warning: this is going to get ugly.  we jump through these
         // hoops to avoid hard coding microboone channel ranges and
@@ -471,14 +466,15 @@ bool Root::MagnifySink::operator()(const IFrame::pointer& frame, IFrame::pointer
             auto cmmkey = it.first;
             auto ct = cmmkey2treename.find(cmmkey);
             if (ct == cmmkey2treename.end()) {
-                std::cerr << "MagnifySink: warning: found channel mask \"" << cmmkey
-			  << "\", but no tree configured to accept it\n";
+                log->warn("MagnifySink: warning: found channel mask \"{}\", but no tree configured to accept it",
+                          cmmkey);
                 continue;
             }
             
             auto treename = ct->second;
             
-            std::cerr << "MagnifySink: saving channel mask \"" << cmmkey << "\" to tree \"" << treename << "\"\n";
+            log->debug("MagnifySink: saving channel mask \"{}\" to tree \"{}\"",
+                       cmmkey, treename);
 
             TTree *tree = new TTree(treename.c_str(), treename.c_str());
             int chid=0, plane=0, start_time=0, end_time=0;
@@ -504,9 +500,8 @@ bool Root::MagnifySink::operator()(const IFrame::pointer& frame, IFrame::pointer
     do_shunt(output_tf);
 
 
-    std::cerr << "MagnifySink: closing output file " << ofname << std::endl;
     auto count = output_tf->Write();
-    std::cerr << "\twrote " << count << " bytes." << std::endl;
+    log->debug("MagnifySink: closing output file {}, wrote {} bytes", ofname, count);
     output_tf->Close();
     delete output_tf;
     output_tf = nullptr;

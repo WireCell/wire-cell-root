@@ -15,6 +15,7 @@
 #include "WireCellIface/IFrameFilter.h"
 #include "WireCellIface/IConfigurable.h"
 #include "WireCellIface/IAnodePlane.h"
+#include "WireCellUtil/Logging.h"
 
 class TFile;
 
@@ -41,6 +42,7 @@ namespace WireCell {
 
 	    void do_shunt(TFile* output_tf);
 
+            Log::logptr_t log;
         };
     }
 }
