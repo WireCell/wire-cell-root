@@ -332,6 +332,10 @@ bool Root::MagnifySink::operator()(const IFrame::pointer& frame, IFrame::pointer
         std::cerr << "MagnifySink: EOS\n";
         return true;
     }
+    if (frame->traces()->empty()) {
+        std::cerr << "MagnifySink: passing through empty frame " << frame->ident() << std::endl;
+        return true;
+    }
 
     const std::string ofname = m_cfg["output_filename"].asString();
     const std::string mode = m_cfg["root_file_mode"].asString();
