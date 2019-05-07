@@ -155,25 +155,30 @@ std::vector<WireCell::Binning> collate_byplane(const ITrace::vector& traces, con
         uvwt[3].push_back(trace->tbin() + trace->charge().size());
     }
 
-    std::vector<Binning> binnings;
+    std::vector<Binning> binnings(4);
     for (int ind=0; ind<4; ++ind) {
         auto const& one = uvwt[ind];
+        // std::cerr << "[wgu] get ind: " << ind << " size: " << one.size() << std::endl;
         if (one.empty()) {
-            THROW(ValueError() << errmsg{"MagnifySink: bogus bounds"});
+            // THROW(ValueError() << errmsg{"MagnifySink: bogus bounds"});
+            std::cerr << "[wgu] plane: " << ind << " has not traces. " << std::endl;
         }
-            
-        auto mme = std::minmax_element(one.begin(), one.end());
-        const int vmin = *mme.first;
-        const int vmax = *mme.second;
-        if (ind == 3) {
-            const int n = vmax - vmin;
-            binnings.push_back(Binning(n, vmin, vmax));
+        else{    
+            auto mme = std::minmax_element(one.begin(), one.end());
+            const int vmin = *mme.first;
+            const int vmax = *mme.second;
+            if (ind == 3) {
+                const int n = vmax - vmin;
+                // binnings.push_back(Binning(n, vmin, vmax););
+                binnings.at(ind) = Binning(n, vmin, vmax);
+            }
+            else {
+                // Channel-centered binning
+                const double diff = vmax - vmin;
+                // binnings.push_back(Binning(diff+1, vmin-0.5, vmax+0.5));
+                binnings.at(ind) = Binning(diff+1, vmin-0.5, vmax+0.5);
+            }
         }
-        else {
-            // Channel-centered binning
-            const double diff = vmax - vmin;
-            binnings.push_back(Binning(diff+1, vmin-0.5, vmax+0.5));
-        } 
     }
     return binnings;
 }
@@ -356,10 +361,10 @@ bool Root::MagnifySink::operator()(const IFrame::pointer& frame, IFrame::pointer
         log->debug("MagnifySink: tag: \"{}\" with {} traces", tag, traces.size());
 
         auto binnings = collate_byplane(traces, m_anode, traces_byplane);
-
+        // if (binnings.size() == 4) {
         Binning tbin = binnings[3];
         for (int iplane=0; iplane < 3; ++iplane) {
-
+            if (traces_byplane[iplane].empty()) continue;
             const std::string name = Form("h%c_%s", 'u'+iplane, tag.c_str());
             Binning cbin = binnings[iplane];
             std::stringstream ss;
@@ -397,6 +402,7 @@ bool Root::MagnifySink::operator()(const IFrame::pointer& frame, IFrame::pointer
                 }
             }
         }
+        // }
     }
 
 
@@ -433,24 +439,26 @@ bool Root::MagnifySink::operator()(const IFrame::pointer& frame, IFrame::pointer
         for (int iplane=0; iplane<3; ++iplane) {
             std::vector<int>& chans = perplane_channels[iplane];
             std::vector<double>& vals = perplane_values[iplane];
-            auto mme = std::minmax_element(chans.begin(), chans.end());
-            const int ch0 = *mme.first;
-            const int chf = *mme.second;
-            const std::string hname = Form("h%c_%s", 'u'+iplane, tag.c_str());
-            TH1F* hist = new TH1F(hname.c_str(), hname.c_str(),
-                                  chf-ch0+1, ch0, chf);
-            for (size_t ind=0; ind<chans.size(); ++ind) {
-                const int x = chans[ind]+0.5;
-                const double val = vals[ind];
-                if (oper == "set") {
-                    int bin = hist->FindBin(x);
-                    hist->SetBinContent(bin, val);
+            if (!chans.empty()) {
+                auto mme = std::minmax_element(chans.begin(), chans.end());
+                const int ch0 = *mme.first;
+                const int chf = *mme.second;
+                const std::string hname = Form("h%c_%s", 'u'+iplane, tag.c_str());
+                TH1F* hist = new TH1F(hname.c_str(), hname.c_str(),
+                                      chf-ch0+1, ch0, chf);
+                for (size_t ind=0; ind<chans.size(); ++ind) {
+                    const int x = chans[ind]+0.5;
+                    const double val = vals[ind];
+                    if (oper == "set") {
+                        int bin = hist->FindBin(x);
+                        hist->SetBinContent(bin, val);
+                    }
+                    else {
+                        hist->Fill(x, val);
+                    }
                 }
-                else {
-                    hist->Fill(x, val);
-                }
+                hist->SetDirectory(output_tf);
             }
-            hist->SetDirectory(output_tf);
         }
     }
 
