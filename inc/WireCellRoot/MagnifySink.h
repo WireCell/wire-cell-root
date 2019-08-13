@@ -39,7 +39,7 @@ namespace WireCell {
             IAnodePlane::pointer m_anode;
 
 	    int m_nrebin;
-
+	    void create_file();
 	    void do_shunt(TFile* output_tf);
 
             Log::logptr_t log;

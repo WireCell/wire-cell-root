@@ -50,6 +50,8 @@ void Root::MagnifySink::configure(const WireCell::Configuration& cfg)
     m_cfg = cfg;
 
     m_nrebin = get<int>(cfg, "nrebin", m_nrebin);
+
+    create_file();
 }
 
 
@@ -181,6 +183,15 @@ std::vector<WireCell::Binning> collate_byplane(const ITrace::vector& traces, con
         }
     }
     return binnings;
+}
+
+void Root::MagnifySink::create_file() {
+  const std::string ofname = m_cfg["output_filename"].asString();
+  const std::string mode = "RECREATE";
+  TFile* output_tf = TFile::Open(ofname.c_str(), mode.c_str());
+  output_tf->Close("R");
+  delete output_tf;
+  output_tf = nullptr;
 }
 
 
